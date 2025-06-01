@@ -1,3 +1,4 @@
+// src/products/services/products.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateProductDto } from '../dto/create-product.dto';
@@ -7,41 +8,43 @@ import { UpdateProductDto } from '../dto/update-product.dto';
 export class ProductsService {
   constructor(private prisma: PrismaService) {}
 
-  // --- MÉTODO PARA LISTAR TODOS LOS PRODUCTOS ---
-  async findAll() {
-    // Buscamos todos los productos que estén activos en la base de datos
-    return this.prisma.product.findMany({
-      where: { isActive: true },
+  // --- LÓGICA DE CREACIÓN ---
+  async create(createProductDto: CreateProductDto) {
+    return this.prisma.product.create({
+      data: createProductDto,
     });
   }
 
-  // --- MÉTODO PARA VER UN SOLO PRODUCTO POR SU ID ---
+  findAll() {
+    return this.prisma.product.findMany({ where: { isActive: true } });
+  }
+
   async findOne(id: number) {
     const product = await this.prisma.product.findUnique({
-      where: { 
-        id: id,
-        isActive: true, // Solo lo encontramos si está activo
-      },
+      where: { id, isActive: true },
     });
-
-    // Si no se encuentra ningún producto con ese ID, lanzamos un error 404
     if (!product) {
-      throw new NotFoundException(`El producto con el ID #${id} no fue encontrado o no está activo.`);
+      throw new NotFoundException(`El producto con el ID #${id} no fue encontrado.`);
     }
-
     return product;
   }
 
-  // Los métodos de abajo los implementaremos cuando trabajemos en el panel de admin
-  create(createProductDto: CreateProductDto) {
-    return 'This action adds a new product (admin only)';
+  // --- LÓGICA DE ACTUALIZACIÓN ---
+  async update(id: number, updateProductDto: UpdateProductDto) {
+    await this.findOne(id); // Reutilizamos findOne para verificar que el producto existe
+    return this.prisma.product.update({
+      where: { id },
+      data: updateProductDto,
+    });
   }
 
-  update(id: number, updateProductDto: UpdateProductDto) {
-    return `This action updates a #${id} product (admin only)`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} product (admin only)`;
+  // --- LÓGICA DE ELIMINACIÓN (SOFT DELETE) ---
+  async remove(id: number) {
+    await this.findOne(id); // Verificamos que existe
+    // En lugar de borrarlo, lo marcamos como inactivo
+    return this.prisma.product.update({
+      where: { id },
+      data: { isActive: false },
+    });
   }
 }
