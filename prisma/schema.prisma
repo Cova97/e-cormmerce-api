@@ -1,0 +1,137 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//=============== MODULO DE USUARIOS Y AUTENTICACIÓN ===============//
+
+model User {
+  id        String    @id @default(cuid()) // Usamos CUID para IDs únicos y no secuenciales
+  email     String    @unique
+  name      String
+  password  String // En la app, siempre guardaremos el hash, no el texto plano
+  role      Role      @default(CUSTOMER)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  addresses Address[]
+  orders    Order[]
+  cart      Cart? // Un usuario tiene un carrito
+}
+
+model Address {
+  id         Int     @id @default(autoincrement())
+  street     String
+  city       String
+  state      String
+  zipCode    String
+  country    String
+  isDefault  Boolean @default(false)
+  
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+}
+
+enum Role {
+  ADMIN
+  CUSTOMER
+}
+
+
+//=============== MODULO DE PRODUCTOS Y CATEGORÍAS ===============//
+
+model Product {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String
+  price       Decimal  @db.Decimal(10, 2) // Precisión para dinero
+  stock       Int      @default(0)
+  imageUrl    String?  // URL a la imagen del producto
+  isActive    Boolean  @default(true) // Para desactivar productos sin borrarlos
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones
+  categories Category[]
+  orderItems OrderItem[]
+  cartItems  CartItem[]
+}
+
+model Category {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  // Relación muchos a muchos con Productos
+  products Product[]
+}
+
+
+//=============== MODULO DE CARRITO DE COMPRA ===============//
+
+// El carrito es un contenedor para los items que un usuario quiere comprar
+model Cart {
+  id     Int      @id @default(autoincrement())
+  user   User     @relation(fields: [userId], references: [id])
+  userId String   @unique // Cada usuario solo tiene un carrito
+
+  items CartItem[]
+}
+
+// Item individual dentro del carrito
+model CartItem {
+  id         Int @id @default(autoincrement())
+  quantity   Int
+
+  cart     Cart @relation(fields: [cartId], references: [id])
+  cartId   Int
+
+  product   Product @relation(fields: [productId], references: [id])
+  productId Int
+
+  @@unique([cartId, productId]) // Previene duplicados del mismo producto en el carrito
+}
+
+
+//=============== MODULO DE ÓRDENES ===============//
+
+model Order {
+  id        Int         @id @default(autoincrement())
+  total     Decimal     @db.Decimal(10, 2)
+  status    OrderStatus @default(PENDING)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  
+  user    User   @relation(fields: [userId], references: [id])
+  userId  String
+
+  // Relaciones
+  items OrderItem[]
+}
+
+model OrderItem {
+  id       Int     @id @default(autoincrement())
+  quantity Int
+  // Guardamos el precio al momento de la compra para que no cambie si el producto se actualiza
+  price    Decimal @db.Decimal(10, 2) 
+
+  order     Order   @relation(fields: [orderId], references: [id])
+  orderId   Int
+
+  product   Product @relation(fields: [productId], references: [id])
+  productId Int
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
